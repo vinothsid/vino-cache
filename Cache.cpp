@@ -1,6 +1,9 @@
 #include <iostream>
-#include<limits.h>
-
+//#include<limits>
+#include "limits.h"
+#include <fstream>
+#include <sstream>
+#include "string.h"
 using namespace std;
 typedef unsigned int TAG;
 
@@ -80,9 +83,9 @@ public:
 	Set();
 	int init(int assoc);
 	int getLRU(); // Returns the index of LRU block in the set
-	int place(TAG tag); // places the tag at corresponding position;
+	int place(TAG tag,char oper); // places the tag at corresponding position;
 	int updateRank(int i);//sets blk[i]'s rank to 0 and updates the rank of other blocks in the set
-	bool search(TAG tag); //searches in the entire set and if tag is present returns true else return false
+	bool search(TAG tag,char oper); //searches in the entire set and if tag is present returns true else return false
 	void print();
 
 
@@ -94,8 +97,9 @@ Set::Set() {
 
 void Set::print() {
 	for(int i=0;i<setAssoc;i++) {
-		cout << hex << blk[i].getTag() << " " ;
+		cout << hex << blk[i].getTag() << ":" << blk[i].isDirty() << " " ;
 	}
+	cout << endl;
 }
 
 int Set::init(int assoc) {
@@ -120,7 +124,7 @@ int Set::getLRU() {
 	return index;
 }
 
-int Set::place(TAG tag) {
+int Set::place(TAG tag,char oper) {
 	int placeIndex=-1;
 	for(int i=0;i<setAssoc;i++) {
 		if(blk[i].isValid()==false) {
@@ -138,6 +142,16 @@ int Set::place(TAG tag) {
 		
 	}
 
+	if (blk[placeIndex].isDirty() ) {
+		// issue a write to next level 
+		//nextLevel.write(tag);
+		cout << "Dirty block " << hex << blk[placeIndex].getTag() << " evicted" << endl;
+		blk[placeIndex].setDirty(false);
+	}
+
+	if (oper == 'w') {
+		blk[placeIndex].setDirty(true);
+	}
         blk[placeIndex].setTag(tag);
         updateRank(placeIndex);
 		
@@ -155,11 +169,13 @@ int Set::updateRank(int i) {
 	}
 }
 
-bool Set::search(TAG tag) {
+bool Set::search(TAG tag,char oper) {
 
 	
 	for(int i=0;i<setAssoc;i++) {
 		if (blk[i].checkTag(tag) ) {
+			if(oper == 'w')
+				blk[i].setDirty(true);
 			updateRank(i);
 			return true;
 
@@ -287,18 +303,18 @@ int Cache::read(TAG addr) {
 	unsigned int index = getIndexOfSet(addr);
 
 	unsigned int blockAddr = addr >> (numOffsetBits+numSetsBits);
-	if(s[index].search(blockAddr)) {
-		cout<<"In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
+	if(s[index].search(blockAddr,'r')) {
+		cout<<"Read : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
 		s[index].print();
 		cout<<endl;
 
 	} else {
-		cout<<"In set index : " << index << ". Miss for : " << hex << blockAddr << endl;
+		cout<<"Read : In set index : " << index << ". Miss for : " << hex << blockAddr << endl;
 
 		// check in stream Buffer
 		// nextLevel->read(addr);
 //The following is simultated for retrieval from next level of cache or memory
-		s[index].place(blockAddr);
+		s[index].place(blockAddr,'r');
 		s[index].print();
 		cout<<endl;
 
@@ -308,6 +324,27 @@ int Cache::read(TAG addr) {
 }
 
 int Cache::write(TAG addr) {
+
+        unsigned int index = getIndexOfSet(addr);
+
+        unsigned int blockAddr = addr >> (numOffsetBits+numSetsBits);
+        if(s[index].search(blockAddr,'w')) {
+                cout<<"Write : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
+		//s[index].setDirty(true);
+                s[index].print();
+                cout<<endl;
+
+        } else {
+                cout<<"Write : In set index : " << index << ". Miss for : " << hex << blockAddr << endl;
+
+                // check in stream Buffer
+                // nextLevel->read(addr);
+//The following is simultated for retrieval from next level of cache or memory
+                s[index].place(blockAddr,'w');
+                s[index].print();
+                cout<<endl;
+
+        }
 
 }
 
@@ -326,14 +363,61 @@ int Cache::getIndexOfSet(TAG address) {
 		
 }
 
-int Cache::run(char *fileName) {
+int Cache::run(char * fileName) {
 
+/*
 	TAG seqAddr[9] = { 0x40007a48, 0x40007a4c ,0x40007a58 ,0x40007a48,0x40007a68,0x40007a48 ,0x40007a58 ,0x40007a5c ,0x40007a64 };
 
 	for(int i=0;i<9;i++ ) {
 		read(seqAddr[i]);
 
 	}
+	for(int i=0;i<9;i++ ) {
+		write(seqAddr[i]);
+
+	}
+
+*/
+
+	string line;
+	ifstream myfile;
+	myfile.open( fileName );
+	char oper;
+	char address[9];
+	memset(address,0,9);
+/*
+	string s("400382BA");
+	istringstream iss(s);
+	TAG addr;
+	iss >> hex >> addr; 
+	cout << "address : " << hex << addr << endl;*/
+
+	TAG addr;
+	//myfile.open( "gcc_trace.txt" , ios_base::binary);
+	if (myfile.is_open()) {
+		while ( getline (myfile,line) ) {
+			//getline (myfile,line);
+			oper = line.at(0);
+			line.copy(address,line.size(),2);
+//			cout << line << endl;
+			
+			istringstream iss(address);			
+			iss >> hex >> addr;	
+//			cout << oper << " " << hex << addr << endl;
+
+			if (oper == 'r' )
+				read(addr);
+			else if (oper == 'w')
+				write(addr);
+			else {
+				cout << "Error : Invalid operation encountered" << endl;
+			}
+			
+		}
+		myfile.close();
+	} else 
+		cout << "Unable to open file"; 
+
 
 }
 
@@ -352,11 +436,11 @@ void Cache::printMembers() {
 
 int main() {
 
-	Cache l1(4,2,32,0,0,NULL) ;
+	Cache l1(16,2,1024,0,0,NULL) ;
 	l1.printMembers();
 
 	cout<< l1.getIndexOfSet(0x40007a64) << endl;
-	l1.run("dummy");
+	l1.run("gcc_trace.txt");
 	cout<<"chk" << endl;
 
 }
