@@ -34,7 +34,7 @@ public:
 	int setLru(int i);
 	int getLru();
 	int incrLru();
-	int getTag();
+	TAG getTag();
 
 };
 
@@ -53,7 +53,7 @@ int Block::getLru() {
 	return lruCounter;
 }
 
-int Block::getTag() {
+TAG Block::getTag() {
 	return tag;
 }
 int Block::incrLru() {
@@ -120,8 +120,8 @@ void Set::print() {
 int Set::init(int assoc) {
 	setAssoc = assoc;
 	blk = new Block[assoc];
-	for(int i=1;i<=setAssoc;i++) {
-		blk[i-1].setLru(setAssoc-i);
+	for(int i=0;i<=setAssoc;i++) {
+		blk[i].setLru(i);
 //		blk[i-1].setLru(0);
 	}
 }
@@ -237,41 +237,81 @@ class Cache;
 
 class StreamBuffer {
 	Block *blk;
-	Cache *nextLevel;
-
+//	bool *dirty;
+	int blkSize;
+	int numBlks;
+	int head;
+	int tail;
 public:
 //	StreamBuffer(int numBlocks) ; 
 	StreamBuffer();
-	int init(int numBlocks,Cache *c);
-	int read(TAG tag); // Reads the address tag
-	int write(TAG tag); //Writes the address tag
+	int init(int numBlocks,int blockSize);
+	bool search(TAG blockNumber); // Reads the address tag
 	int shift();//Shift the entire block up once , and set the new last block
-	int makeDirty(TAG tag); // Forgot what to do
+	bool makeDirty(TAG blockNumber); // Forgot what to do
+	int fetch(TAG blockNumber); // Fetches next numBlks blocks into buffer . (blockNumber +1 .... blockNumber + numBlks )
+	TAG getHead();
+
 };
 
 StreamBuffer::StreamBuffer() {
 
 }
 
-int StreamBuffer::init(int numBlocks,Cache *c) {
+int StreamBuffer::init(int numBlocks,int blockSize) {
 	blk = new Block[numBlocks];
-	nextLevel = c;
+	numBlks = numBlocks;
+	blkSize = blockSize;
+	head=-1;
+	tail=-1;
 }
 
-int StreamBuffer::read(TAG tag) {
-
+TAG StreamBuffer::getHead() {
+	return blk[head].getTag();
 }
 
-int StreamBuffer::write(TAG tag) {
+int StreamBuffer::fetch(TAG blockNumber) {
+	head=0;
+	for(tail=0; tail<numBlks; tail++) {
+		blk[tail].setTag(blockNumber + (tail +1)*blkSize);
+		blk[tail].setDirty(false);
+	}
 
 }
+bool StreamBuffer::search(TAG blockNumber) {
+	if( blk[head].isDirty() == false && blk[head].getTag( ) == blockNumber) {
+		cout << "ST HIT"<< endl;
+		return true;
+	}
+
+	return false; 
+}
+
 
 int StreamBuffer::shift() {
+	head=(head+1)%numBlks;
 
+	TAG nextBlock = blk[tail].getTag() + blkSize ;
+	tail = (tail+1)%numBlks;
+
+	//Simulating fetching of next block
+	blk[tail].setTag(nextBlock);
+	
 }
 
-int StreamBuffer::makeDirty(TAG tag) {
+bool StreamBuffer::makeDirty(TAG blockNumber) {
 
+	int i=head;
+	do {
+		if(blk[i].getTag() == blockNumber) {
+			blk[i].setDirty(true);
+			return true;
+		}
+
+		i=(i+1)%numBlks;
+	} while(i!=head);
+
+	return false;
 }
 
 class Cache {
@@ -287,6 +327,7 @@ class Cache {
 	unsigned int setsMask;
 	Set *s;
 	StreamBuffer *stBuf;
+	int stBufLru;
 	Cache *nextLevel;
 // Stats variables
 /*
@@ -333,7 +374,7 @@ Cache::Cache(int blockSize,int numAssoc,int totalSize,int numStBufs,int numBlock
 	stBuf = new StreamBuffer[numStreamBuf];
 	//initialise all blk of stBuf
 	for(i=0;i<numStreamBuf;i++)
-		stBuf[i].init(numBlocksInStreamBuf,c);
+		stBuf[i].init(numBlocksInStreamBuf,blkSize);
 
 	nextLevel = c;
 	
