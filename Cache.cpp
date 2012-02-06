@@ -16,7 +16,7 @@ typedef unsigned int TAG;
 	long int numWriteHits;
         long int numWriteBacks;
 	long int numOpers;
-
+	
 class Block {
 	bool valid;
 	bool dirty;
@@ -120,7 +120,7 @@ void Set::print() {
 int Set::init(int assoc) {
 	setAssoc = assoc;
 	blk = new Block[assoc];
-	for(int i=0;i<=setAssoc;i++) {
+	for(int i=0;i<setAssoc;i++) {
 		blk[i].setLru(i);
 //		blk[i-1].setLru(0);
 	}
@@ -242,6 +242,7 @@ class StreamBuffer {
 	int numBlks;
 	int head;
 	int tail;
+	int lruCounter;
 public:
 //	StreamBuffer(int numBlocks) ; 
 	StreamBuffer();
@@ -251,6 +252,10 @@ public:
 	bool makeDirty(TAG blockNumber); // Forgot what to do
 	int fetch(TAG blockNumber); // Fetches next numBlks blocks into buffer . (blockNumber +1 .... blockNumber + numBlks )
 	TAG getHead();
+	int setLru(int i);
+	int getLru();
+	int incrLru();
+	
 
 };
 
@@ -264,6 +269,19 @@ int StreamBuffer::init(int numBlocks,int blockSize) {
 	blkSize = blockSize;
 	head=-1;
 	tail=-1;
+}
+
+int StreamBuffer::setLru(int i) {
+        lruCounter = i;
+}
+
+int StreamBuffer::getLru() {
+        return lruCounter;
+}
+
+
+int StreamBuffer::incrLru() {
+        lruCounter++;
 }
 
 TAG StreamBuffer::getHead() {
@@ -304,6 +322,7 @@ bool StreamBuffer::makeDirty(TAG blockNumber) {
 	int i=head;
 	do {
 		if(blk[i].getTag() == blockNumber) {
+			cout << "Block : " << hex << blockNumber << " is set dirty" << endl;
 			blk[i].setDirty(true);
 			return true;
 		}
@@ -312,6 +331,83 @@ bool StreamBuffer::makeDirty(TAG blockNumber) {
 	} while(i!=head);
 
 	return false;
+}
+
+class PrefetchUnit {
+	int M; // number of blocks
+	int N; // number of stream buffers
+	int blkSize;
+	Cache *nextLevel; 
+	StreamBuffer *stBuf;	
+public:
+	PrefetchUnit(int mBlocks,int nBufs,int bSize) ;
+	int updateRank(int i);
+	int getLRU();
+	int prefetch(TAG blockAddr);
+	bool search(TAG blockAddr);
+};
+
+PrefetchUnit::PrefetchUnit(int mBlocks,int nBufs,int bSize) {
+	M= mBlocks;
+	N = nBufs;
+	blkSize = bSize;
+
+	stBuf = new StreamBuffer[N];
+	for(int i=0;i<N;i++) {
+		stBuf[i].init(M,blkSize);
+		stBuf[i].setLru(i);
+	}
+	
+	
+}
+
+int PrefetchUnit::getLRU() {
+
+        int max=INT_MIN;
+        int index=-1;
+        for(int i=0;i<N;i++) {
+                if( stBuf[i].getLru() > max ) {
+                        max = stBuf[i].getLru();
+                        index = i;
+                }
+        }
+
+        return index;
+}
+
+int PrefetchUnit::updateRank(int i) {
+
+        for(int j=0;j<N;j++) {
+                if(j!=i) {
+                        stBuf[j].incrLru();
+                } else {
+                        stBuf[j].setLru(0);
+                }
+        }
+}
+
+int PrefetchUnit::prefetch(TAG blockAddr) {
+	int index = getLRU();
+	stBuf[index].fetch(blockAddr);
+	updateRank(index);
+
+}
+
+bool PrefetchUnit::search(TAG blockAddr) {
+
+	for(int i=0;i<N;i++) {
+		if(stBuf[i].search(blockAddr) ) {
+			cout << "Stream Buffer : "  << i << " shifted up" << endl;
+			stBuf[i].shift();
+			updateRank(i);
+			return true;
+		}
+	}
+
+	// if not found
+
+	return false;
+
 }
 
 class Cache {
@@ -326,7 +422,7 @@ class Cache {
 	string cacheName;
 	unsigned int setsMask;
 	Set *s;
-	StreamBuffer *stBuf;
+	PrefetchUnit *preUnit;
 	int stBufLru;
 	Cache *nextLevel;
 // Stats variables
@@ -369,13 +465,12 @@ Cache::Cache(int blockSize,int numAssoc,int totalSize,int numStBufs,int numBlock
 	for(i=0;i<numSets;i++)
 		s[i].init(assoc);
 
-
-	//initialise blk of each s;
-	stBuf = new StreamBuffer[numStreamBuf];
-	//initialise all blk of stBuf
-	for(i=0;i<numStreamBuf;i++)
-		stBuf[i].init(numBlocksInStreamBuf,blkSize);
-
+/*
+	if(numStBufs != 0 )
+		preUnit = new PrefetchUnit(numStBufs,numBlocksInStBuf,blockSize);
+	else
+		preUnit = NULL;
+*/
 	nextLevel = c;
 	
 	numOffsetBits=0;
@@ -419,17 +514,18 @@ int Cache::read(TAG addr) {
 
 	int index = getIndexOfSet(addr);
 
-	unsigned int blockAddr = addr >> (numOffsetBits+numSetsBits);
+	unsigned int tagAddr = addr >> (numOffsetBits+numSetsBits);
+	unsigned int blockAddr = addr >> numOffsetBits;
 	numReads++;
 	numOpers++;
 
 	if(DEBUG) {
 		cout << "----------------------------------------"<<endl;
 		cout << "# " << numOpers << " read " << hex << addr<< endl;
-		cout << cacheName << " read : " << hex << (addr >> numOffsetBits) << "(tag " <<  blockAddr << ", index " << dec << index << ")" << endl ;
+		cout << cacheName << " read : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
 		
 	}
-	if(s[index].search(blockAddr,'r')) {
+	if(s[index].search(tagAddr,'r')) {
 	//	cout<<"Read : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
 	//	s[index].print();
 	//	cout<<endl;
@@ -441,8 +537,20 @@ int Cache::read(TAG addr) {
 		// nextLevel->read(addr);
 //The following is simultated for retrieval from next level of cache or memory
 		numReadMisses++;
+/*	
+		if(preUnit != NULL) {
+			if(preUnit.search(blockAddr)) {
+				
+			}
 	
-		s[index].place(blockAddr,'r');
+		} else {
+
+		// get it from next level cache
+		}
+*/
+		s[index].place(tagAddr,'r');
+		
+		
 	//	s[index].print();
 	//	cout<<endl;
 
@@ -519,11 +627,11 @@ int Cache::run(char * fileName) {
 */
 
 	string line;
-	ifstream myfile;
-	myfile.open( fileName );
+	ifstream myfile(fileName);
+//	myfile.open( fileName );
 	char oper;
 	char address[9];
-	memset(address,0,9);
+//	memset(address,0,9);
 /*
 	string s("400382BA");
 	istringstream iss(s);
@@ -532,12 +640,14 @@ int Cache::run(char * fileName) {
 	cout << "address : " << hex << addr << endl;*/
 
 	TAG addr;
-	//myfile.open( "gcc_trace.txt" , ios_base::binary);
+//	myfile.open( "gcc_trace.txt" , ios_base::binary);
 	if (myfile.is_open()) {
+//		do {
 		while ( getline (myfile,line) ) {
-			//getline (myfile,line);
+	
+//			getline (myfile,line);
 			oper = line.at(0);
-			line.copy(address,line.size(),2);
+			line.copy(address,(line.size()-2),2);
 //			cout << line << endl;
 			
 			istringstream iss(address);			
@@ -551,14 +661,18 @@ int Cache::run(char * fileName) {
 			else {
 				cout << "Error : Invalid operation encountered" << endl;
 			}
+
+
 			memset(address,0,9);
 			
-		}
+		} //while ( myfile.good() );
 		myfile.close();
 	} else 
 		cout << "Unable to open file"; 
 
 
+//	cout << line << endl;
+	cout << "END of Run" << endl;
 }
 
 void Cache::printMembers() {
@@ -597,6 +711,7 @@ int main() {
 	l1.printStats();
 //	cout<<"chk" << endl;
 
+	//sleep(1);
 }
 
 
