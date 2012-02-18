@@ -4,7 +4,9 @@
 #include <fstream>
 #include <sstream>
 #include "string.h"
-#define DEBUG 0
+
+//#define DEBUG 0
+
 #define VICTIM_NONE 0
 #define VICTIM_REPLACE 1
 #define VICTIM_WB 2
@@ -162,12 +164,14 @@ int Set::place(TAG tag,char oper,TAG & wbTag ) {
 
 	if(placeIndex==-1) {
 		placeIndex = getLRU();
-		if(DEBUG)
+#ifdef DEBUG
 			cout << "victim: tag " << hex << blk[placeIndex].getTag() << endl ;
+#endif
 		status = VICTIM_REPLACE; 
 	} else {
-		if(DEBUG)
+#ifdef DEBUG
 			cout << "victim: none" << endl ;
+#endif
         	blk[placeIndex].setValid(true);
 		status = VICTIM_NONE;	
 	}
@@ -175,25 +179,29 @@ int Set::place(TAG tag,char oper,TAG & wbTag ) {
 	if (blk[placeIndex].isDirty() ) {
 		// issue a write to next level 
 		//nextLevel.write(tag);
-//		cout << "Dirty block " << hex << blk[placeIndex].getTag() << " evicted" << endl;
-
+#ifdef DEBUG
+		cout << "Dirty block " << hex << blk[placeIndex].getTag() << " evicted" << endl;
+#endif
 		status = VICTIM_WB;
 		wbTag = blk[placeIndex].getTag();	
 		blk[placeIndex].setDirty(false);
-		if(DEBUG)
+#ifdef DEBUG
 			cout << ", dirty" << endl ;	
+#endif
 	} 
 
 
 	if (oper == 'w') {
 		blk[placeIndex].setDirty(true);
-		if(DEBUG)
+#ifdef DEBUG
 			cout << " set dirty" << endl;
+#endif
 	}
 
         blk[placeIndex].setTag(tag);
-	if(DEBUG)
+#ifdef DEBUG
 		cout << "Update LRU" << endl;
+#endif
         updateRank(placeIndex);
 		
 	return status;
@@ -220,17 +228,18 @@ bool Set::search(TAG tag,char oper) {
 				blk[i].setDirty(true);
 			updateRank(i);
 		
-			if(DEBUG) {
+#ifdef DEBUG
 				cout << "Hit" << endl;			
 				cout << "Update LRU" << endl;
-			}
+#endif			
 			return true;
 
 		}
 	}
 
-	if(DEBUG)
+#ifdef DEBUG
 		cout << "Miss" << endl;
+#endif
 	//if not found in the entire set , its MISS
 /*	i = getLRU();
 	blk[i].setValid(true);
@@ -574,6 +583,9 @@ void Cache::printContent() {
 		s[i].print();
 	}
 
+	if (preUnit != NULL ) {
+		preUnit->print();
+	}
 /*
 	for(int i=0;i<numSets;i++) {
 		cout << "Set :" << dec << i << " ";  
@@ -591,7 +603,7 @@ void Cache::printStats() {
         cout << "f. number of " << cacheName << " writebacks\t" << dec << numWriteBacks << endl;
 
 	cout << "number of " << cacheName << " prefetches\t" << dec << numReadFromPreUnit << endl;
-	cout << "number of " << cacheName << " reads that is not from prefetches\t" << dec << (numReads- numReadFromPreUnit) << endl;
+	cout << "number of " << cacheName << "L2 reads because prefetches\t" << dec << numReadFromPreUnit << endl;
 }
 
 int Cache::read(TAG addr) {
@@ -603,22 +615,15 @@ int Cache::read(TAG addr) {
 	numReads++;
 	numOpers++;
 
-	if(DEBUG) {
+#ifdef DEBUG 
 		cout << "----------------------------------------"<<endl;
 		cout << "# " << numOpers << " read " << hex << addr<< endl;
 		cout << cacheName << " read : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
 		
-	}
+#endif
 	if(s[index].search(tagAddr,'r')) {
-	//	cout<<"Read : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
-	//	s[index].print();
-	//	cout<<endl;
 		numReadHits++;
 	} else {
-	//	cout<<"Read : In set index : " << index << ". Miss for : " << hex << blockAddr << endl;
-
-		// check in stream Buffer
-		// nextLevel->read(addr);
 //The following is simultated for retrieval from next level of cache or memory
 		numReadMisses++;
 
@@ -627,11 +632,15 @@ int Cache::read(TAG addr) {
 /***** When replacing if write back is done then make block in prefetch unit as dirty ****/
 		TAG wbTag;
 		if ( s[index].place(tagAddr,'r',wbTag ) == VICTIM_WB) {
-		
+
+#ifdef DEBUG		
 			cout << "VICTIM_WB : tag :  " << hex << wbTag << endl;	
+#endif
 			unsigned int wbBlockNum;
 			wbBlockNum = ( wbTag << numSetsBits ) | index ;
+#ifdef DEBUG
 			cout << "VICTIM_WB : block :  " << hex << wbBlockNum << " in set : " << dec << index << endl;	
+#endif
  
 			numWriteBacks++;
 
@@ -654,12 +663,15 @@ int Cache::read(TAG addr) {
 		if(preUnit != NULL) {
 			if(preUnit->search(blockAddr)) {
 				cout << "found in prefetch unit" << endl;
+				numReadMisses--;
+				numReadFromPreUnit++; // one read will be sent to next level from prefetch unit
 				
 			} else {
 				cout << "not found in prefetch unit.fetching from next level" << endl;
 				// nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
 				nextLevel->read(addr);
 				preUnit->prefetch(blockAddr);
+				numReadFromPreUnit += numBlocksInStreamBuf;
 			}
 	
 		} else {
@@ -690,12 +702,11 @@ int Cache::write(TAG addr) {
 	numWrites++;
 	numOpers++;
 
-	if(DEBUG) {
+#ifdef DEBUG
 		cout << "----------------------------------------"<<endl;
 		cout << "# " << numOpers << " write " << hex << addr<< endl;
 		cout << cacheName << " write : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
-
-	}
+#endif
         if(s[index].search(tagAddr,'w')) {
          //       cout<<"Write : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
            //     s[index].print();
@@ -716,10 +727,14 @@ int Cache::write(TAG addr) {
                // s[index].place(blockAddr,'w',wbTag);
                if ( s[index].place(tagAddr,'w',wbTag ) == VICTIM_WB) {
 
+#ifdef DEBUG
                         cout << "VICTIM_WB : tag :  " << hex << wbTag << endl;
+#endif
                         unsigned int wbBlockNum;
                         wbBlockNum = ( wbTag << numSetsBits ) | index ;
+#ifdef DEBUG
                         cout << "VICTIM_WB : block :  " << hex << wbBlockNum << " in set : " << dec << index << endl;
+#endif
 
 			// issue a write to next level
 			numWriteBacks++;
@@ -738,32 +753,18 @@ int Cache::write(TAG addr) {
 
                 }
 
-/*****  Check in prefetch unit  *****/
-                if(preUnit != NULL) {
-                        if(preUnit->search(blockAddr)) {
-                                cout << "found in prefetch unit" << endl;
-
-                        } else {
-                                cout << "not found in prefetch unit.fetching from next level" << endl;
-                                // nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
-                                preUnit->prefetch(blockAddr);
-                        }
-
-                } else {
-
-                // get it from next level cache
-                }
-
 
 /*****  Check in prefetch unit  *****/
                 if(preUnit != NULL) {
                         if(preUnit->search(blockAddr)) {
                                 cout << "found in prefetch unit" << endl;
-
+				numWriteMisses--;  // it is considered as hit if present in prefetch unit
+				numReadFromPreUnit++;
                         } else {
                                 cout << "not found in prefetch unit.fetching from next level" << endl;
-                                // nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
-                                preUnit->prefetch(blockAddr);
+                                nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
+                                preUnit->prefetch(blockAddr); // it will fetch blockAddr+1 to blockAddr+M
+				numReadFromPreUnit += numBlocksInStreamBuf;
                         }
 
                 } else {
@@ -907,7 +908,7 @@ int StreamBuffer::shift() {
 
 	if(nextLevel != NULL) {
 		nextLevel->read(nextBlock << numOffsetBits);
-		*prefReadCounter = (*prefReadCounter) + 1;
+//		*prefReadCounter = (*prefReadCounter) + 1;
 	}
 	//Simulating fetching of next block
 	blk[tail].setTag(nextBlock);
@@ -919,7 +920,7 @@ int StreamBuffer::fetch(TAG blockNumber) {
 	for(tail=0; tail<numBlks; tail++) {
 		bNum = blockNumber + (tail +1);
 		if(nextLevel != NULL) {
-			*prefReadCounter = (*prefReadCounter) + 1;
+//			*prefReadCounter = (*prefReadCounter) + 1;
 			nextLevel->read(  (blockNumber << numOffsetBits)  );
 		}
 	
@@ -933,7 +934,7 @@ int main() {
 
 	Cache l2(16,4,8192,0,0,NULL,"L2");
 
-	Cache l1(16,1,1024,0,0,&l2,"L1") ;
+	Cache l1(16,1,1024,1,4,&l2,"L1") ;
 	//Cache l1(16,2,1024,0,0,NULL,"L1") ;
 
 	//For debugging 
