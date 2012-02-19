@@ -415,12 +415,10 @@ PrefetchUnit::PrefetchUnit(int nBufs,int mBlocks,int bSize,Cache *c,long int *st
 
 void PrefetchUnit::print() {
 
-	cout << "==================== Stream Buffer Contents ======================" << endl;
 	for(int i=0;i<N;i++) {
-		cout << i << " " ;
+		cout << i << " " << stBuf[i].getLru() << endl ;
 		stBuf[i].print();
 	}
-	cout << "==================================================================" << endl;
 }
 
 
@@ -595,6 +593,7 @@ Cache::Cache(int blockSize,int numAssoc,int totalSize,int numStBufs,int numBlock
 }
 
 void Cache::printContent() {
+	cout << "===== " << cacheName  << " contents =====" << endl;
 	for(int i=0;i<numSets;i++) {
 		cout << "Set\t" << dec <<  i <<":";
 //		s[i].sort();
@@ -602,6 +601,7 @@ void Cache::printContent() {
 	}
 
 	if (preUnit != NULL ) {
+		cout << "===== " << cacheName << "-SB contents =====" << endl;
 		preUnit->print();
 	}
 /*
