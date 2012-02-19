@@ -786,8 +786,11 @@ int Cache::read(TAG addr) {
 				cout << cacheName << " miss" << endl;
 #endif
 			numReadMisses++;
-			if(nextLevel!=NULL)
-				nextLevel->read(addr);
+
+                        if(nextLevel!=NULL) {
+                                if ( nextLevel->read(addr) == CACHE_MISS )
+                                                numL2readMissNotFromPre++;
+                        }
 			
 			result = CACHE_MISS;
 
@@ -897,8 +900,10 @@ int Cache::write(TAG addr) {
 				cout << cacheName << " miss" << endl;
 #endif
 			numWriteMisses++;
-			if(nextLevel!=NULL)
-				nextLevel->read(addr);
+			if(nextLevel!=NULL) {
+				if ( nextLevel->read(addr) == CACHE_MISS )
+                                                numL2readMissNotFromPre++;
+			}
 
 			result = CACHE_MISS;
                 // get it from next level cache
@@ -1102,7 +1107,7 @@ int main() {
         strcpy( trace_file,"gcc_trace.txt" );
 */
 
-/* validation 1
+/* validation 1 
         BLOCKSIZE = 16;
         L1_SIZE = 1024;
         L1_ASSOC = 1;
@@ -1115,7 +1120,7 @@ int main() {
         strcpy( trace_file,"gcc_trace.txt" );
 */
 
-/* validation 2 */
+/* validation 2 */ 
         BLOCKSIZE = 16;
         L1_SIZE = 1024;
         L1_ASSOC = 2;
@@ -1127,7 +1132,49 @@ int main() {
         L2_PREF_M = 0;
         strcpy( trace_file,"gcc_trace.txt" );
 
-/* validation 6
+
+/* validation 3 
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 1;
+        L1_PREF_N = 0;
+        L1_PREF_M = 0;
+        L2_SIZE = 8192;
+        L2_ASSOC = 4;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+*/
+
+/* validation 4 
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 1;
+        L1_PREF_N = 1;
+        L1_PREF_M = 4;
+        L2_SIZE = 8192;
+        L2_ASSOC = 4;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+
+*/
+
+/* validation 5 
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 1;
+        L1_PREF_N = 3;
+        L1_PREF_M = 4;
+        L2_SIZE = 8192;
+        L2_ASSOC = 4;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+
+*/
+
+/* validation 6 
 	BLOCKSIZE = 16;
 	L1_SIZE = 1024;
 	L1_ASSOC = 1;
@@ -1140,6 +1187,19 @@ int main() {
 	strcpy( trace_file,"gcc_trace.txt" );
 */
 
+/* validation 7 
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 1;
+        L1_PREF_N = 0;
+        L1_PREF_M = 0;
+        L2_SIZE = 8192;
+        L2_ASSOC = 4;
+        L2_PREF_N = 3;
+        L2_PREF_M = 8;
+        strcpy( trace_file,"gcc_trace.txt" );
+
+*/
 
         cout << "===== Simulator configuration =====" << endl;
         cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
