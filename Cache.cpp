@@ -685,7 +685,8 @@ int Cache::read(TAG addr) {
 				cout << cacheName <<"-SB miss" << endl ;
 #endif
 				numReadMisses++;
-				nextLevel->read(addr);
+				if(nextLevel != NULL)
+					nextLevel->read(addr);
 				preUnit->prefetch(blockAddr);
 				numReadFromPreUnit += numBlocksInStreamBuf;
 			}
@@ -793,7 +794,8 @@ int Cache::write(TAG addr) {
 
 //                               cout << "not found in prefetch unit.fetching from next level" << endl;
 				numWriteMisses++;
-                                nextLevel->read( addr); // l2 cache read that is not from prefetch unit
+				if(nextLevel != NULL)
+	                                nextLevel->read( addr); // l2 cache read that is not from prefetch unit
                                 preUnit->prefetch(blockAddr); // it will fetch blockAddr+1 to blockAddr+M
 				numReadFromPreUnit += numBlocksInStreamBuf;
                         }
@@ -981,9 +983,9 @@ int StreamBuffer::fetch(TAG blockNumber) {
 }
 int main() {
 
-	Cache l2(16,4,8192,4,4,NULL,"L2");
+	Cache l2(16,4,8192,3,8,NULL,"L2");
 
-	Cache l1(16,1,1024,2,4,&l2,"L1") ;
+	Cache l1(16,1,1024,0,0,&l2,"L1") ;
 	//Cache l1(16,2,1024,0,0,NULL,"L1") ;
 
 	//For debugging 
