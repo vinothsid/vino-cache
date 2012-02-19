@@ -5,7 +5,7 @@
 #include <sstream>
 #include "string.h"
 
-//#define DEBUG 0
+#define DEBUG 0
 
 #define VICTIM_NONE 0
 #define VICTIM_REPLACE 1
@@ -199,9 +199,6 @@ int Set::place(TAG tag,char oper,TAG & wbTag ) {
 	}
 
         blk[placeIndex].setTag(tag);
-#ifdef DEBUG
-		cout << "Update LRU" << endl;
-#endif
         updateRank(placeIndex);
 		
 	return status;
@@ -209,6 +206,9 @@ int Set::place(TAG tag,char oper,TAG & wbTag ) {
 
 int Set::updateRank(int i) {
 
+#ifdef DEBUG
+		cout << "Update LRU" << endl;
+#endif
 	int tmp = blk[i].getLru();
 	for(int j=0;j<setAssoc;j++) {
 		if(j==i) {
@@ -229,8 +229,8 @@ bool Set::search(TAG tag,char oper) {
 			updateRank(i);
 		
 #ifdef DEBUG
-				cout << "Hit" << endl;			
-				cout << "Update LRU" << endl;
+//				cout << "Hit" << endl;			
+//				cout << "Update LRU" << endl;
 #endif			
 			return true;
 
@@ -238,7 +238,7 @@ bool Set::search(TAG tag,char oper) {
 	}
 
 #ifdef DEBUG
-		cout << "Miss" << endl;
+//		cout << "Miss" << endl;
 #endif
 	//if not found in the entire set , its MISS
 /*	i = getLRU();
@@ -422,7 +422,9 @@ bool PrefetchUnit::makeDirty( TAG blockAddr ) {
 	// eventhough makeDirty is called for all stream buffer , it will be present in any one and will be made dirty
 	for(int i=0;i<N;i++) {
 		if ( stBuf[i].makeDirty(blockAddr) ) {
-			cout << "Block in stream buffer : " << i << " is made dirty" << endl;
+#ifdef DEBUG
+	//		cout << "Block in stream buffer : " << i << " is made dirty" << endl;
+#endif
 			return true;
 		}
 	}	
@@ -458,6 +460,9 @@ int PrefetchUnit::updateRank(int i) {
 
 int PrefetchUnit::prefetch(TAG blockAddr) {
 	int index = getLRU();
+#ifdef DEBUG
+	cout << "select LRU buffer #" << index << ", update LRU" << endl;
+#endif	
 	stBuf[index].fetch(blockAddr);
 	updateRank(index);
 
@@ -467,7 +472,9 @@ bool PrefetchUnit::search(TAG blockAddr) {
 
 	for(int i=0;i<N;i++) {
 		if(stBuf[i].search(blockAddr) ) {
-			cout << "Stream Buffer : "  << i << " shifted up" << endl;
+#ifdef DEBUG
+			cout << "#"  << i << " pop first entry update LRU," << endl;
+#endif
 			stBuf[i].shift();
 			updateRank(i);
 			return true;
@@ -613,19 +620,21 @@ int Cache::read(TAG addr) {
 	unsigned int tagAddr = addr >> (numOffsetBits+numSetsBits);
 	unsigned int blockAddr = addr >> numOffsetBits;
 	numReads++;
-	numOpers++;
 
 #ifdef DEBUG 
-		cout << "----------------------------------------"<<endl;
-		cout << "# " << numOpers << " read " << hex << addr<< endl;
+		cout << " read " << hex << addr<< endl;
 		cout << cacheName << " read : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
 		
 #endif
 	if(s[index].search(tagAddr,'r')) {
+
+#ifdef DEBUG
+		cout << cacheName <<" hit" << endl;
+#endif
 		numReadHits++;
+		
 	} else {
 //The following is simultated for retrieval from next level of cache or memory
-		numReadMisses++;
 
 
 
@@ -648,7 +657,9 @@ int Cache::read(TAG addr) {
 			
 			if ( preUnit!=NULL) {
 				if ( preUnit->makeDirty(wbBlockNum) == false ) {
+#ifdef DEBUG
 					cout << "Evicted block not found in stream buffer" << endl;
+#endif
 				}
 			}
 
@@ -662,19 +673,28 @@ int Cache::read(TAG addr) {
 /*****  Check in prefetch unit  *****/	
 		if(preUnit != NULL) {
 			if(preUnit->search(blockAddr)) {
-				cout << "found in prefetch unit" << endl;
-				numReadMisses--;
+#ifdef DEBUG
+				cout << cacheName << "-SB" ;
+#endif				
 				numReadFromPreUnit++; // one read will be sent to next level from prefetch unit
 				
 			} else {
-				cout << "not found in prefetch unit.fetching from next level" << endl;
-				// nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
+
+#ifdef DEBUG
+				cout << cacheName << " miss" << endl;
+				cout << cacheName <<"-SB miss" << endl ;
+#endif
+				numReadMisses++;
 				nextLevel->read(addr);
 				preUnit->prefetch(blockAddr);
 				numReadFromPreUnit += numBlocksInStreamBuf;
 			}
 	
 		} else {
+#ifdef DEBUG
+				cout << cacheName << " miss" << endl;
+#endif
+			numReadMisses++;
 			if(nextLevel!=NULL)
 				nextLevel->read(addr);
 
@@ -700,14 +720,16 @@ int Cache::write(TAG addr) {
         unsigned int tagAddr = addr >> (numOffsetBits+numSetsBits);
         unsigned int blockAddr = addr >> numOffsetBits;
 	numWrites++;
-	numOpers++;
 
 #ifdef DEBUG
-		cout << "----------------------------------------"<<endl;
-		cout << "# " << numOpers << " write " << hex << addr<< endl;
+		cout << " write " << hex << addr<< endl;
 		cout << cacheName << " write : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
 #endif
         if(s[index].search(tagAddr,'w')) {
+#ifdef DEBUG
+                cout << cacheName <<" hit" << endl;
+#endif
+
          //       cout<<"Write : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
            //     s[index].print();
            //     cout<<endl;
@@ -719,7 +741,6 @@ int Cache::write(TAG addr) {
                 // check in stream Buffer
                 // nextLevel->read(addr);
 //The following is simultated for retrieval from next level of cache or memory
-		numWriteMisses++;
 
 /***** When replacing if write back is done then make block in prefetch unit as dirty ****/
 
@@ -741,7 +762,9 @@ int Cache::write(TAG addr) {
 
 			if(preUnit != NULL ) {
 				if ( preUnit->makeDirty(wbBlockNum) == false ) {
+#ifdef DEBUG
 					cout << "Evicted block not found in stream buffer" << endl;
+#endif
 				}
 			}
 
@@ -757,17 +780,29 @@ int Cache::write(TAG addr) {
 /*****  Check in prefetch unit  *****/
                 if(preUnit != NULL) {
                         if(preUnit->search(blockAddr)) {
-                                cout << "found in prefetch unit" << endl;
-				numWriteMisses--;  // it is considered as hit if present in prefetch unit
+#ifdef DEBUG
+                                cout << cacheName << "-SB" ;
+#endif
+//                                cout << "found in prefetch unit" << endl;
 				numReadFromPreUnit++;
                         } else {
-                                cout << "not found in prefetch unit.fetching from next level" << endl;
-                                nextLevel->read(blockAddr); // l2 cache read that is not from prefetch unit
+#ifdef DEBUG
+				cout << cacheName << " miss" << endl;
+                                cout << cacheName <<"-SB miss" << endl ;
+#endif
+
+//                               cout << "not found in prefetch unit.fetching from next level" << endl;
+				numWriteMisses++;
+                                nextLevel->read( addr); // l2 cache read that is not from prefetch unit
                                 preUnit->prefetch(blockAddr); // it will fetch blockAddr+1 to blockAddr+M
 				numReadFromPreUnit += numBlocksInStreamBuf;
                         }
 
                 } else {
+#ifdef DEBUG
+				cout << cacheName << " miss" << endl;
+#endif
+			numWriteMisses++;
 			if(nextLevel!=NULL)
 				nextLevel->read(addr);
 
@@ -851,9 +886,14 @@ int Cache::run(char * fileName) {
 //			cout << line << endl;
 			
 			istringstream iss(address);			
+			numOpers++;
 			iss >> hex >> addr;	
-//			cout << oper << " " << hex << addr << endl;
+#ifdef DEBUG
+		//	cout << oper << " " << addr << endl;
 
+			cout << "----------------------------------------"<<endl;
+		        cout << "# " << numOpers ;
+#endif
 			if (oper == 'r' )
 				read(addr);
 			else if (oper == 'w')
@@ -905,26 +945,35 @@ int StreamBuffer::shift() {
 
 	TAG nextBlock = blk[tail].getTag() + 1 ;
 	tail = (tail+1)%numBlks;
+	nextBlock = nextBlock << numOffsetBits ;
 
 	if(nextLevel != NULL) {
-		nextLevel->read(nextBlock << numOffsetBits);
+#ifdef DEBUG
+		cout << " prefetch " << nextBlock;
+#endif		
+		nextLevel->read( nextBlock );
 //		*prefReadCounter = (*prefReadCounter) + 1;
 	}
 	//Simulating fetching of next block
-	blk[tail].setTag(nextBlock);
+	blk[tail].setTag(nextBlock >> numOffsetBits );
 	
 }
 int StreamBuffer::fetch(TAG blockNumber) {
-	int bNum;
+	TAG bNum;
 	head=0;
 	for(tail=0; tail<numBlks; tail++) {
 		bNum = blockNumber + (tail +1);
-		if(nextLevel != NULL) {
+		bNum = bNum << numOffsetBits ;
+#ifdef DEBUG
+		cout << "prefetch " << hex <<  bNum << endl;
+#endif		
+		if( nextLevel != NULL) {
 //			*prefReadCounter = (*prefReadCounter) + 1;
-			nextLevel->read(  (blockNumber << numOffsetBits)  );
+			nextLevel->read(  bNum  );
+			
 		}
 	
-		blk[tail].setTag( bNum );
+		blk[tail].setTag( bNum >> numOffsetBits );
 		blk[tail].setDirty(false);
 	}
 	tail--;
@@ -932,9 +981,9 @@ int StreamBuffer::fetch(TAG blockNumber) {
 }
 int main() {
 
-	Cache l2(16,4,8192,0,0,NULL,"L2");
+	Cache l2(16,4,8192,4,4,NULL,"L2");
 
-	Cache l1(16,1,1024,1,4,&l2,"L1") ;
+	Cache l1(16,1,1024,2,4,&l2,"L1") ;
 	//Cache l1(16,2,1024,0,0,NULL,"L1") ;
 
 	//For debugging 
