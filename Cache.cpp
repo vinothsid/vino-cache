@@ -4,12 +4,16 @@
 #include <fstream>
 #include <sstream>
 #include "string.h"
+#include <iomanip>
 
-#define DEBUG 0
+//#define DEBUG 0
 
 #define VICTIM_NONE 0
 #define VICTIM_REPLACE 1
 #define VICTIM_WB 2
+
+#define CACHE_MISS 0
+#define CACHE_HIT 1
 using namespace std;
 typedef unsigned int TAG;
 
@@ -346,7 +350,9 @@ TAG StreamBuffer::getHead() {
 
 bool StreamBuffer::search(TAG blockNumber) {
 	if( blk[head].isDirty() == false && blk[head].getTag( ) == blockNumber) {
+#ifdef DEBUG
 		cout << "ST HIT"<< endl;
+#endif
 		return true;
 	}
 
@@ -363,12 +369,13 @@ bool StreamBuffer::makeDirty(TAG blockNumber) {
 	int i=head;
 	do {
 		if(blk[i].getTag() == blockNumber) {
+#ifdef DEBUG
 			cout << "Block : " << hex << blockNumber << " is set dirty in stream buffer" << endl;
+#endif
 			blk[i].setDirty(true);
 			return true;
 		}
 
-		cout << "in make dirty" << endl;
 		i=(i+1)%numBlks;
 	} while(i!=head);
 
@@ -496,7 +503,6 @@ class Cache {
 	int numSets;
 	int numOffsetBits;
 	int numSetsBits;
-	string cacheName;
 	unsigned int setsMask;
 	Set *s;
 	PrefetchUnit *preUnit;
@@ -512,6 +518,8 @@ class Cache {
 */	
 /*********** Stats *****************/
 
+public:
+
         long int numReads;
         long int numReadMisses;
 	long int numReadHits;
@@ -520,7 +528,9 @@ class Cache {
 	long int numWriteHits;
         long int numWriteBacks;
 	long int numReadFromPreUnit;
-public:
+	long int numL2readMissNotFromPre;
+	string cacheName;
+
 	Cache(int blockSize,int numAssoc,int totalSize,int numStBufs,int numBlocksInStBuf,Cache *c,string name);
 	int read(TAG addr); 
 	int write(TAG addr);
@@ -547,6 +557,7 @@ Cache::Cache(int blockSize,int numAssoc,int totalSize,int numStBufs,int numBlock
         numWriteMisses=0;
         numWriteBacks=0;
 	numReadFromPreUnit = 0;
+	numL2readMissNotFromPre = 0;
 	cacheName = name;
 	s = new Set[numSets];
 
@@ -603,6 +614,64 @@ void Cache::printContent() {
 }
 
 void Cache::printStats() {
+
+	string nlcName = "L2"; // Next level cache name is by default L2
+
+
+	double clMissRate;
+	clMissRate = ((double)(numReadMisses + numWriteMisses))/((double)(numReads+numWrites));
+
+
+	long int nlNumReadsNotFromPre = 0; // next level number of reads not from prefetches
+	long int nlNumReadMissFromPre = 0; // next level number of read misses from prefetches
+	long int nlNumWrites = 0;
+	long int nlNumWriteMiss = 0;
+	long int nlNumWriteBacks = 0;
+	long int nlNumPre = 0;
+	long int nlNumReads = 0;
+	long int nlNumReadMiss = 0;
+	double nlMissRate = 0;
+	long int totalMemTraffic = 0;
+
+	if (nextLevel != NULL) {
+		nlcName = nextLevel->cacheName;
+		nlNumReadsNotFromPre = nextLevel->numReads - numReadFromPreUnit ;
+		nlNumReadMissFromPre = nextLevel->numReadMisses - numL2readMissNotFromPre ;
+		nlNumWrites = nextLevel->numWrites;
+		nlNumWriteMiss = nextLevel->numWriteMisses;
+		nlNumReads = nextLevel->numReads;
+		nlNumReadMiss = nextLevel->numReadMisses;
+		nlNumPre = nextLevel->numReadFromPreUnit;
+		nlMissRate = ((double)(numL2readMissNotFromPre))/((double)(nlNumReadsNotFromPre));  
+		nlNumPre = nextLevel->numReadFromPreUnit;
+		nlNumWriteBacks = nextLevel->numWriteBacks;
+
+		totalMemTraffic = nlNumReadMiss + nlNumWriteMiss + nlNumWriteBacks + nlNumPre ;
+	} else {
+		totalMemTraffic = numReadMisses + numWriteMisses + numReadFromPreUnit ;
+	}
+		
+	
+
+	cout << "a. number of " << cacheName <<" reads:\t" << dec << numReads << endl;
+	cout << "b. number of " << cacheName <<" read misses:\t" << numReadMisses << endl;
+	cout << "c. number of " << cacheName << " writes:\t" << numWrites << endl;
+	cout << "d. number of " << cacheName << " write misses:\t" << numWriteMisses << endl;
+	cout << "e. " << cacheName << " miss rate:\t" << fixed << setprecision(6) << clMissRate << endl;
+	cout << "f. number of " << cacheName << " writebacks:\t" << numWriteBacks << endl;
+	cout << "g. number of " << cacheName << " prefetches:\t" << numReadFromPreUnit << endl;
+	cout << "h. number of " << nlcName << " reads that did not originate from " << cacheName << " prefetches:\t" <<   nlNumReadsNotFromPre << endl ;
+	cout << "i. number of " << nlcName << " read misses that did not originate from " << cacheName << " prefetches:\t" << numL2readMissNotFromPre << endl ;
+	cout << "j. number of " << nlcName << " reads that originated from " << cacheName << " prefetches:\t" << numReadFromPreUnit << endl;
+	cout << "k. number of " << nlcName << " read misses that originated from " << cacheName << "  prefetches:\t" << nlNumReadMissFromPre << endl;
+	cout << "l. number of " << nlcName << " writes:\t" << nlNumWrites << endl; 
+	cout << "m. number of " << nlcName << " write misses:\t" << nlNumWriteMiss << endl;
+	cout << "n. " << nlcName << " miss rate:\t" << nlMissRate << endl;
+	cout << "o. number of " << nlcName <<" writebacks:\t" << nlNumWriteBacks << endl;
+	cout << "p. number of " << nlcName << " prefetches:\t" << nlNumPre << endl;
+	cout << "q. total memory traffic:\t" << totalMemTraffic << endl;
+
+/*
         cout << "a. number of " <<  cacheName << " reads\t" << dec << numReads << endl;
         cout << "b. number of " << cacheName << " read misses \t" << dec << numReadMisses << endl;
         cout << "c. number of " << cacheName << " writes\t" << dec << numWrites << endl;
@@ -611,6 +680,8 @@ void Cache::printStats() {
 
 	cout << "number of " << cacheName << " prefetches\t" << dec << numReadFromPreUnit << endl;
 	cout << "number of " << cacheName << "L2 reads because prefetches\t" << dec << numReadFromPreUnit << endl;
+	cout << "number of " << cacheName << "L2 read misses that did not originate from prefetches\t" << dec << numL2readMissNotFromPre << endl;
+*/
 }
 
 int Cache::read(TAG addr) {
@@ -621,6 +692,7 @@ int Cache::read(TAG addr) {
 	unsigned int blockAddr = addr >> numOffsetBits;
 	numReads++;
 
+	int result=-1;
 #ifdef DEBUG 
 		cout << " read " << hex << addr<< endl;
 		cout << cacheName << " read : " << hex << (addr >> numOffsetBits) << "(tag " <<  tagAddr << ", index " << dec << index << ")" << endl ;
@@ -632,7 +704,8 @@ int Cache::read(TAG addr) {
 		cout << cacheName <<" hit" << endl;
 #endif
 		numReadHits++;
-		
+	
+		result =  CACHE_HIT;	
 	} else {
 //The following is simultated for retrieval from next level of cache or memory
 
@@ -677,7 +750,7 @@ int Cache::read(TAG addr) {
 				cout << cacheName << "-SB" ;
 #endif				
 				numReadFromPreUnit++; // one read will be sent to next level from prefetch unit
-				
+				result = CACHE_HIT;	
 			} else {
 
 #ifdef DEBUG
@@ -685,10 +758,14 @@ int Cache::read(TAG addr) {
 				cout << cacheName <<"-SB miss" << endl ;
 #endif
 				numReadMisses++;
-				if(nextLevel != NULL)
-					nextLevel->read(addr);
+				if(nextLevel != NULL) {
+					if ( nextLevel->read(addr) == CACHE_MISS )
+						numL2readMissNotFromPre++;
+
+				}
 				preUnit->prefetch(blockAddr);
 				numReadFromPreUnit += numBlocksInStreamBuf;
+				result = CACHE_MISS;
 			}
 	
 		} else {
@@ -698,6 +775,8 @@ int Cache::read(TAG addr) {
 			numReadMisses++;
 			if(nextLevel!=NULL)
 				nextLevel->read(addr);
+			
+			result = CACHE_MISS;
 
 //			if(nextLevel!=NULL)
 //				nextLevel->read(addr);
@@ -710,7 +789,7 @@ int Cache::read(TAG addr) {
 		//preUnit->print();
 	}
 	
-		 
+	return result; 
 	
 }
 
@@ -721,6 +800,7 @@ int Cache::write(TAG addr) {
         unsigned int tagAddr = addr >> (numOffsetBits+numSetsBits);
         unsigned int blockAddr = addr >> numOffsetBits;
 	numWrites++;
+	int result = -1;
 
 #ifdef DEBUG
 		cout << " write " << hex << addr<< endl;
@@ -731,17 +811,10 @@ int Cache::write(TAG addr) {
                 cout << cacheName <<" hit" << endl;
 #endif
 
-         //       cout<<"Write : In set index : " << index << ". Hit for : " << hex << blockAddr << endl;
-           //     s[index].print();
-           //     cout<<endl;
 		numWriteHits++;
 
+		result = CACHE_HIT;
         } else {
-                //cout<<"Write : In set index : " << index << ". Miss for : " << hex << blockAddr << endl;
-
-                // check in stream Buffer
-                // nextLevel->read(addr);
-//The following is simultated for retrieval from next level of cache or memory
 
 /***** When replacing if write back is done then make block in prefetch unit as dirty ****/
 
@@ -786,6 +859,7 @@ int Cache::write(TAG addr) {
 #endif
 //                                cout << "found in prefetch unit" << endl;
 				numReadFromPreUnit++;
+				result = CACHE_HIT;
                         } else {
 #ifdef DEBUG
 				cout << cacheName << " miss" << endl;
@@ -794,10 +868,15 @@ int Cache::write(TAG addr) {
 
 //                               cout << "not found in prefetch unit.fetching from next level" << endl;
 				numWriteMisses++;
-				if(nextLevel != NULL)
-	                                nextLevel->read( addr); // l2 cache read that is not from prefetch unit
+				if(nextLevel != NULL) {
+                                        if ( nextLevel->read(addr) == CACHE_MISS ) // l2 cache read that is not from prefetch unit
+                                                numL2readMissNotFromPre++;
+
+                                }
+
                                 preUnit->prefetch(blockAddr); // it will fetch blockAddr+1 to blockAddr+M
 				numReadFromPreUnit += numBlocksInStreamBuf;
+				result = CACHE_MISS;
                         }
 
                 } else {
@@ -808,6 +887,7 @@ int Cache::write(TAG addr) {
 			if(nextLevel!=NULL)
 				nextLevel->read(addr);
 
+			result = CACHE_MISS;
                 // get it from next level cache
                 }
 
@@ -823,6 +903,8 @@ int Cache::write(TAG addr) {
                 //cout<<endl;
 
         }
+
+	return result;
 
 }
 
@@ -914,7 +996,7 @@ int Cache::run(char * fileName) {
 
 
 //	cout << line << endl;
-	cout << "END of Run" << endl;
+//	cout << "END of Run" << endl;
 }
 
 void Cache::printMembers() {
@@ -983,9 +1065,51 @@ int StreamBuffer::fetch(TAG blockNumber) {
 }
 int main() {
 
-	Cache l2(16,4,8192,3,8,NULL,"L2");
+	int BLOCKSIZE = 0;
+	int L1_SIZE = 0;
+	int L1_ASSOC = 0;
+	int L1_PREF_N = 0;
+	int L1_PREF_M =0;
+	int L2_SIZE = 0;
+	int L2_ASSOC = 0;
+	int L2_PREF_N = 0;
+	int L2_PREF_M =0;
+	char trace_file[50];
 
-	Cache l1(16,1,1024,0,0,&l2,"L1") ;
+	BLOCKSIZE = 16;
+	L1_SIZE = 1024;
+	L1_ASSOC = 1;
+	L1_PREF_N = 2;
+	L1_PREF_M = 4;
+	L2_SIZE = 8192;
+	L2_ASSOC = 4;
+	L2_PREF_N = 4;
+	L2_PREF_M = 4;
+	strcpy( trace_file,"gcc_trace.txt" );
+
+        cout << "===== Simulator configuration =====" << endl;
+        cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
+        cout << "L1_SIZE:\t" << L1_SIZE << endl;
+        cout << "L1_ASSOC:\t" << L1_ASSOC << endl;
+        cout << "L1_PREF_N:\t" << L1_PREF_N << endl;
+        cout << "L1_PREF_M:\t" << L1_PREF_M << endl;
+        cout << "L2_SIZE:\t" << L2_SIZE << endl;
+        cout << "L2_ASSOC:\t" << L2_ASSOC << endl;
+        cout << "L2_PREF_N:\t" << L2_PREF_N << endl;
+        cout << "L2_PREF_M:\t" << L2_PREF_M << endl;
+        cout <<  "trace_file:\t" << trace_file << endl;
+
+/*		Cache l2(16,4,8192,4,4,NULL,"L2");
+		Cache l1(16,1,1024,2,4,&l2,"L1") ;
+*/
+
+	Cache *l1,*l2;
+	if ( L2_SIZE != 0 ) {
+		l2 = new Cache(BLOCKSIZE,L2_ASSOC,L2_SIZE,L2_PREF_N,L2_PREF_M,NULL,"L2");
+		l1 = new Cache(BLOCKSIZE,L1_ASSOC,L1_SIZE,L1_PREF_N,L1_PREF_M,l2,"L1");
+
+	}
+
 	//Cache l1(16,2,1024,0,0,NULL,"L1") ;
 
 	//For debugging 
@@ -993,17 +1117,14 @@ int main() {
 
 	//End of debugging
 
-	l1.printMembers();
-	l2.printMembers();
-
 //	cout<< l1.getIndexOfSet(0x40007a64) << endl;
-	l1.run("gcc_trace.txt");
+	l1->run( trace_file );
 
 //	l1.debugRun();
-	l1.printContent();
-	l2.printContent();
-	l1.printStats();
-	l2.printStats();
+	l1->printContent();
+	l2->printContent();
+	l1->printStats();
+//	l2.printStats();
 //	cout<<"chk" << endl;
 
 	//sleep(1);
