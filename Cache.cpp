@@ -285,7 +285,7 @@ public:
 	TAG getHead();
 	int setLru(int i);
 	int getLru();
-	int incrLru();
+	int incrLru(int N);
 	void print();	
 
 };
@@ -297,13 +297,14 @@ StreamBuffer::StreamBuffer() {
 
 void StreamBuffer::print() {
 	
-
+#ifdef DEBUG
 	cout << "Head :" << head << "  Tail : " << tail << endl;
+#endif
 	if(head == -1)
 		return;
 	int i=head;
         do {
-		cout << hex << blk[i].getTag() << ":" << blk[i].isDirty() << " " ;	
+		cout << "\t" << hex << (blk[i].getTag() << numOffsetBits) ;	
 
                 i=(i+1)%numBlks;
         } while(i!=head);
@@ -340,8 +341,8 @@ int StreamBuffer::getLru() {
 }
 
 
-int StreamBuffer::incrLru() {
-        lruCounter++;
+int StreamBuffer::incrLru(int N) {
+        lruCounter = (lruCounter+1)%N ;
 }
 
 TAG StreamBuffer::getHead() {
@@ -416,8 +417,14 @@ PrefetchUnit::PrefetchUnit(int nBufs,int mBlocks,int bSize,Cache *c,long int *st
 void PrefetchUnit::print() {
 
 	for(int i=0;i<N;i++) {
-		cout << i << " " << stBuf[i].getLru() << endl ;
-		stBuf[i].print();
+#ifdef DEBUG
+//		cout << i << " " << stBuf[i].getLru() << endl ;
+#endif
+
+		for(int j=0;j<N;j++) {
+			if (stBuf[j].getLru() == i)
+				stBuf[j].print();
+		}
 	}
 }
 
@@ -454,12 +461,13 @@ int PrefetchUnit::getLRU() {
 
 int PrefetchUnit::updateRank(int i) {
 
+	int tmp = stBuf[i].getLru();
         for(int j=0;j<N;j++) {
-                if(j!=i) {
-                        stBuf[j].incrLru();
-                } else {
+                if ( j==i)  {
                         stBuf[j].setLru(0);
-                }
+                } else if( stBuf[j].getLru() < tmp  ) {
+                        stBuf[j].incrLru(N);
+		}
         }
 }
 
@@ -648,11 +656,11 @@ void Cache::printStats() {
 
 		totalMemTraffic = nlNumReadMiss + nlNumWriteMiss + nlNumWriteBacks + nlNumPre ;
 	} else {
-		totalMemTraffic = numReadMisses + numWriteMisses + numReadFromPreUnit ;
+		totalMemTraffic = numReadMisses + numWriteMisses + numWriteBacks + numReadFromPreUnit ;
 	}
 		
 	
-
+	cout << "===== Simulation results (raw) =====" << endl;
 	cout << "a. number of " << cacheName <<" reads:\t" << dec << numReads << endl;
 	cout << "b. number of " << cacheName <<" read misses:\t" << numReadMisses << endl;
 	cout << "c. number of " << cacheName << " writes:\t" << numWrites << endl;
@@ -666,7 +674,12 @@ void Cache::printStats() {
 	cout << "k. number of " << nlcName << " read misses that originated from " << cacheName << "  prefetches:\t" << nlNumReadMissFromPre << endl;
 	cout << "l. number of " << nlcName << " writes:\t" << nlNumWrites << endl; 
 	cout << "m. number of " << nlcName << " write misses:\t" << nlNumWriteMiss << endl;
-	cout << "n. " << nlcName << " miss rate:\t" << nlMissRate << endl;
+
+	if(nextLevel == NULL)
+		cout << "n. " << nlcName << " miss rate:\t0" << endl;
+	else	
+		cout << "n. " << nlcName << " miss rate:\t" << nlMissRate << endl;
+
 	cout << "o. number of " << nlcName <<" writebacks:\t" << nlNumWriteBacks << endl;
 	cout << "p. number of " << nlcName << " prefetches:\t" << nlNumPre << endl;
 	cout << "q. total memory traffic:\t" << totalMemTraffic << endl;
@@ -1076,6 +1089,45 @@ int main() {
 	int L2_PREF_M =0;
 	char trace_file[50];
 
+/* validation 0 
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 2;
+        L1_PREF_N = 0;
+        L1_PREF_M = 0;
+        L2_SIZE = 0;
+        L2_ASSOC = 0;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+*/
+
+/* validation 1
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 1;
+        L1_PREF_N = 0;
+        L1_PREF_M = 0;
+        L2_SIZE = 0;
+        L2_ASSOC = 0;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+*/
+
+/* validation 2 */
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 2;
+        L1_PREF_N = 0;
+        L1_PREF_M = 0;
+        L2_SIZE = 8192;
+        L2_ASSOC = 4;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+
+/* validation 6
 	BLOCKSIZE = 16;
 	L1_SIZE = 1024;
 	L1_ASSOC = 1;
@@ -1086,6 +1138,8 @@ int main() {
 	L2_PREF_N = 4;
 	L2_PREF_M = 4;
 	strcpy( trace_file,"gcc_trace.txt" );
+*/
+
 
         cout << "===== Simulator configuration =====" << endl;
         cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
@@ -1108,6 +1162,8 @@ int main() {
 		l2 = new Cache(BLOCKSIZE,L2_ASSOC,L2_SIZE,L2_PREF_N,L2_PREF_M,NULL,"L2");
 		l1 = new Cache(BLOCKSIZE,L1_ASSOC,L1_SIZE,L1_PREF_N,L1_PREF_M,l2,"L1");
 
+	} else {
+		l1 = new Cache(BLOCKSIZE,L1_ASSOC,L1_SIZE,L1_PREF_N,L1_PREF_M,NULL,"L1");
 	}
 
 	//Cache l1(16,2,1024,0,0,NULL,"L1") ;
@@ -1122,7 +1178,9 @@ int main() {
 
 //	l1.debugRun();
 	l1->printContent();
-	l2->printContent();
+	if ( L2_SIZE != 0 )
+		l2->printContent();
+
 	l1->printStats();
 //	l2.printStats();
 //	cout<<"chk" << endl;
