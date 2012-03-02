@@ -1,6 +1,7 @@
 #include <iostream>
 //#include<limits>
 #include "limits.h"
+#include "stdlib.h"
 #include <fstream>
 #include <sstream>
 #include "string.h"
@@ -1081,7 +1082,7 @@ int StreamBuffer::fetch(TAG blockNumber) {
 	tail--;
 
 }
-int main() {
+int main(int argc,char *argv[]) {
 
 	int BLOCKSIZE = 0;
 	int L1_SIZE = 0;
@@ -1094,112 +1095,21 @@ int main() {
 	int L2_PREF_M =0;
 	char trace_file[50];
 
-/* validation 0 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 2;
-        L1_PREF_N = 0;
-        L1_PREF_M = 0;
-        L2_SIZE = 0;
-        L2_ASSOC = 0;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-*/
+	if(argc!= 11) {
+		printf("Error: Need 10 args.\nUsage:./sim_cache <BLOCKSIZE> <L1_SIZE> <L1_ASSOC> <L1_PREF_N> <L1_PREF_M> <L2_SIZE> <L2_ASSOC> <L2_PREF_N> <L2_PREF_M> <trace_file>\n");
+		return 0 ;
+	}
 
-/* validation 1 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 1;
-        L1_PREF_N = 0;
-        L1_PREF_M = 0;
-        L2_SIZE = 0;
-        L2_ASSOC = 0;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-*/
-
-/* validation 2 */ 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 2;
-        L1_PREF_N = 0;
-        L1_PREF_M = 0;
-        L2_SIZE = 8192;
-        L2_ASSOC = 4;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-
-
-/* validation 3 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 1;
-        L1_PREF_N = 0;
-        L1_PREF_M = 0;
-        L2_SIZE = 8192;
-        L2_ASSOC = 4;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-*/
-
-/* validation 4 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 1;
-        L1_PREF_N = 1;
-        L1_PREF_M = 4;
-        L2_SIZE = 8192;
-        L2_ASSOC = 4;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-
-*/
-
-/* validation 5 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 1;
-        L1_PREF_N = 3;
-        L1_PREF_M = 4;
-        L2_SIZE = 8192;
-        L2_ASSOC = 4;
-        L2_PREF_N = 0;
-        L2_PREF_M = 0;
-        strcpy( trace_file,"gcc_trace.txt" );
-
-*/
-
-/* validation 6 
-	BLOCKSIZE = 16;
-	L1_SIZE = 1024;
-	L1_ASSOC = 1;
-	L1_PREF_N = 2;
-	L1_PREF_M = 4;
-	L2_SIZE = 8192;
-	L2_ASSOC = 4;
-	L2_PREF_N = 4;
-	L2_PREF_M = 4;
-	strcpy( trace_file,"gcc_trace.txt" );
-*/
-
-/* validation 7 
-        BLOCKSIZE = 16;
-        L1_SIZE = 1024;
-        L1_ASSOC = 1;
-        L1_PREF_N = 0;
-        L1_PREF_M = 0;
-        L2_SIZE = 8192;
-        L2_ASSOC = 4;
-        L2_PREF_N = 3;
-        L2_PREF_M = 8;
-        strcpy( trace_file,"gcc_trace.txt" );
-
-*/
+	BLOCKSIZE = atoi(argv[1]);
+	L1_SIZE = atoi(argv[2]);
+	L1_ASSOC = atoi(argv[3]);
+	L1_PREF_N = atoi(argv[4]);
+	L1_PREF_M = atoi(argv[5]);
+	L2_SIZE = atoi(argv[6]);
+	L2_ASSOC = atoi(argv[7]);
+	L2_PREF_N = atoi(argv[8]);
+	L2_PREF_M = atoi(argv[9]);
+	strcpy(trace_file,argv[10]);
 
         cout << "===== Simulator configuration =====" << endl;
         cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
