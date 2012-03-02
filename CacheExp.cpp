@@ -1270,6 +1270,56 @@ void exp5() {
 
 }
 
+void exp6() {
+
+
+        int BLOCKSIZE = 0;
+        long int L1_SIZE = 0;
+        int L1_ASSOC = 4;
+        int L1_PREF_N = 0;
+        int L1_PREF_M =0;
+        long int L2_SIZE = 64*1024 ;
+        int L2_ASSOC = 8;
+        int L2_PREF_N = 0;
+        int L2_PREF_M =0;
+        char trace_file[50];
+	strcpy(trace_file,"gcc_trace.txt");
+
+	cout << "Miss Rate: " << "L1_SIZE" << " " << "L1_PREF_N" << " " << "L1_PREF_M" << " " <<  "L1 Miss Rate" << " "  <<  "L2 Miss Rate" << endl;
+	for(BLOCKSIZE = 16 ; BLOCKSIZE <= 64 ; BLOCKSIZE*=2) {
+		
+		for(L1_SIZE = 1024; L1_SIZE <= 16 * 1024 ; L1_SIZE*=2 ) { // CHANGE TERMINATING CONDITION
+			for(L1_PREF_N = 1 ; L1_PREF_N <= 4 ; L1_PREF_N++) {
+				for(L1_PREF_M = 1 ; L1_PREF_M <= 4 ; L1_PREF_M ++ ) {
+
+					cout << "===== Simulator configuration =====" << endl;
+					cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
+					cout << "L1_SIZE:\t" << L1_SIZE << endl;
+					cout << "L1_ASSOC:\t" << L1_ASSOC << endl;
+					cout << "L1_PREF_N:\t" << L1_PREF_N << endl;
+					cout << "L1_PREF_M:\t" << L1_PREF_M << endl;
+					cout << "L2_SIZE:\t" << L2_SIZE << endl;
+					cout << "L2_ASSOC:\t" << L2_ASSOC << endl;
+					cout << "L2_PREF_N:\t" << L2_PREF_N << endl;
+					cout << "L2_PREF_M:\t" << L2_PREF_M << endl;
+					cout <<  "trace_file:\t" << trace_file << endl;
+							
+					Cache l2(BLOCKSIZE,L2_ASSOC,L2_SIZE,L2_PREF_N,L2_PREF_M,NULL,"L2");
+					Cache l1(BLOCKSIZE,L1_ASSOC,L1_SIZE,L1_PREF_N,L1_PREF_M, &l2 ,"L1");			
+					l1.run(trace_file);
+		//			l1.printContent();
+
+					l1.printStats();
+
+					cout << "Miss Rate: " << L1_SIZE << " " << L1_PREF_N << " " << L1_PREF_M << " " <<  l1.clMissRate << " "  <<  l1.nlMissRate << endl;
+
+				}
+			}
+		}
+	}
+
+}
+
 int StreamBuffer::shift() {
 	head=(head+1)%numBlks;
 
@@ -1435,7 +1485,8 @@ int main() {
 
 //	exp4();
 
-	exp5();
+//	exp5();
+	exp6();
 /*		Cache l2(16,4,8192,4,4,NULL,"L2");
         cout << "===== Simulator configuration =====" << endl;
         cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
