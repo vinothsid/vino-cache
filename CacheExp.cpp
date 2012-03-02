@@ -1486,7 +1486,7 @@ int main() {
 //	exp4();
 
 //	exp5();
-	exp6();
+//	exp6();
 /*		Cache l2(16,4,8192,4,4,NULL,"L2");
         cout << "===== Simulator configuration =====" << endl;
         cout << "BLOCKSIZE:\t" << BLOCKSIZE << endl;
@@ -1503,7 +1503,20 @@ int main() {
 
 		Cache l1(16,1,1024,2,4,&l2,"L1") ;
 */
-/*
+
+        BLOCKSIZE = 16;
+        L1_SIZE = 1024;
+        L1_ASSOC = 4;
+        L1_PREF_N = 1;
+        L1_PREF_M = 8;
+        L2_SIZE = 64*1024;
+        L2_ASSOC = 8;
+        L2_PREF_N = 0;
+        L2_PREF_M = 0;
+        strcpy( trace_file,"gcc_trace.txt" );
+
+
+
 	Cache *l1,*l2;
 	if ( L2_SIZE != 0 ) {
 		l2 = new Cache(BLOCKSIZE,L2_ASSOC,L2_SIZE,L2_PREF_N,L2_PREF_M,NULL,"L2");
@@ -1533,7 +1546,7 @@ int main() {
 //	cout<<"chk" << endl;
 
 	//sleep(1);
-*/
+
 }
 
 
