@@ -126,7 +126,11 @@ void Set::print() {
 					dirtyFlag = 'D';
 				else
 					dirtyFlag = ' ';
-				cout << "\t" << hex << blk[j].getTag() << " " << dirtyFlag   ;
+				if(blk[j].isValid())
+					cout << "\t" << hex << blk[j].getTag() << " " << dirtyFlag   ;
+				else
+					cout << "\t-"   ;
+
 			}
 		}
 	}
