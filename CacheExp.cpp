@@ -1285,7 +1285,7 @@ void exp6() {
         char trace_file[50];
 	strcpy(trace_file,"gcc_trace.txt");
 
-	cout << "Miss Rate: " << "L1_SIZE" << " " << "L1_PREF_N" << " " << "L1_PREF_M" << " " <<  "L1 Miss Rate" << " "  <<  "L2 Miss Rate" << endl;
+	cout << "Miss Rate: " << "BLOCKSIZE" << "L1_SIZE" << " " << "L1_PREF_N" << " " << "L1_PREF_M" << " " <<  "L1 Miss Rate" << " "  <<  "L2 Miss Rate" << endl;
 	for(BLOCKSIZE = 16 ; BLOCKSIZE <= 64 ; BLOCKSIZE*=2) {
 		
 		for(L1_SIZE = 1024; L1_SIZE <= 16 * 1024 ; L1_SIZE*=2 ) { // CHANGE TERMINATING CONDITION
@@ -1311,7 +1311,7 @@ void exp6() {
 
 					l1.printStats();
 
-					cout << "Miss Rate: " << L1_SIZE << " " << L1_PREF_N << " " << L1_PREF_M << " " <<  l1.clMissRate << " "  <<  l1.nlMissRate << endl;
+					cout << "Miss Rate: " << BLOCKSIZE << " " << L1_SIZE << " " << L1_PREF_N << " " << L1_PREF_M << " " <<  l1.clMissRate << " "  <<  l1.nlMissRate << endl;
 
 				}
 			}
